@@ -1,0 +1,963 @@
+<!DOCTYPE html>
+<html lang="da">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tidslinje: Demokrati og oprør</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #fcfcf8;
+        }
+        .puzzle-piece {
+            cursor: grab;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+            position: relative;
+        }
+        .puzzle-piece.dragging {
+            cursor: grabbing;
+            opacity: 0.8;
+            transform: scale(1.05);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            z-index: 50;
+        }
+        
+        .puzzle-piece:hover {
+            z-index: 50;
+        }
+        
+        .puzzle-piece.dragging .tooltip-text {
+            display: none !important;
+        }
+
+        .puzzle-piece.interaction-disabled {
+            pointer-events: none;
+        }
+
+        .expand-btn {
+            position: absolute;
+            top: 2px;
+            right: 2px;
+            width: 20px;
+            height: 20px;
+            background-color: rgba(255, 255, 255, 0.9);
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            z-index: 20;
+            opacity: 0;
+            transition: opacity 0.2s, background-color 0.2s;
+            color: #333;
+            font-size: 10px;
+            padding: 0;
+        }
+        
+        .expand-btn:hover {
+            background-color: #fff;
+            color: #000;
+            box-shadow: 0 0 3px rgba(0,0,0,0.3);
+        }
+
+        .puzzle-piece:hover .expand-btn {
+            opacity: 1;
+        }
+
+        .puzzle-piece.dragging .expand-btn {
+            display: none !important;
+            opacity: 0 !important;
+        }
+
+        .puzzle-piece .tooltip-text {
+            display: none; 
+            background-color: #334155;
+            color: #fff;
+            border-radius: 5px;
+            padding: 8px 12px;
+            position: absolute;
+            z-index: 100;
+            
+            bottom: calc(100% + 8px);
+            left: 50%;
+            transform: translateX(-50%);
+            
+            max-width: 500px; 
+            min-width: 320px;
+            
+            word-break: break-word;
+            white-space: normal;
+            
+            font-size: 0.75rem; 
+            line-height: 1.3; 
+            box-shadow: 0 6px 10px rgba(0,0,0,0.2);
+            cursor: default; 
+        }
+
+        .long-text p.tooltip-content {
+            font-size: 0.65rem;
+        }
+
+        .puzzle-piece .tooltip-text::after {
+            content: '';
+            position: absolute;
+            top: 100%;
+            left: 0;
+            width: 100%;
+            height: 15px; 
+        }
+        
+        .puzzle-piece:hover .tooltip-text {
+            display: block;
+            animation: fadeIn 0.2s ease-in-out;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        .drop-target .puzzle-piece .tooltip-text {
+            bottom: auto; 
+            top: calc(100% + 8px);    
+        }
+        
+        .drop-target .puzzle-piece .tooltip-text::after {
+            top: auto;
+            bottom: 100%;
+            height: 15px;
+        }
+
+        .drop-target {
+            transition: background-color 0.3s ease;
+            border: 2px dashed #d1d5db;
+            background-color: #f9fafb;
+            box-sizing: content-box; 
+            width: 96px;
+            height: 96px;
+        }
+
+        .drop-target.correct {
+            background-color: #dcfce7;
+            border-color: #34d399;
+        }
+        .drop-target.incorrect {
+            background-color: #fee2e2;
+            border-color: #ef4444;
+        }
+        .puzzle-image {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            border-radius: 8px;
+            transition: opacity 0.2s;
+        }
+        .puzzle-piece.on-board {
+            cursor: grab;
+        }
+        .timeline-line {
+            position: relative;
+            height: 2px;
+            background-color: #d1d5db;
+            width: 100%;
+            margin-bottom: 4px;
+        }
+        
+        .timeline-container {
+            position: relative;
+            display: flex;
+            justify-content: space-between; 
+            width: 100%;
+            margin-bottom: 8px;
+        }
+        
+        .timeline-year {
+            position: relative;
+            width: 100px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-end;
+        }
+        
+        .timeline-year span {
+            display: block;
+            text-align: center;
+        }
+
+        .timeline-marker {
+            position: absolute;
+            bottom: -8px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 2px;
+            height: 12px;
+            background-color: #4b5563;
+        }
+        
+        #pieces-container-wrapper {
+            border: 2px dashed #d1d5db;
+            background-color: #f9fafb;
+            border-radius: 12px;
+            padding: 0.75rem;
+            margin-top: 12px;
+        }
+        #pieces-label {
+            color: #9ca3af;
+            font-size: 0.875rem;
+            text-align: center;
+            margin-bottom: 1rem;
+            display: block;
+        }
+        #pieces-container {
+            min-height: 100px;
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 4px;
+        }
+        #reset-button {
+            background-color: #e5e7eb;
+            color: #4b5563;
+            border: 1px solid #d1d5db;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            padding: 0.5rem 1rem;
+            border-radius: 0.5rem;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            transition: background-color 0.2s ease, transform 0.2s ease;
+        }
+        #reset-button:hover {
+            background-color: #d1d5db;
+            transform: translateY(-1px);
+        }
+        #drop-container {
+            display: flex;
+            justify-content: space-between;
+        }
+        
+        .drop-target[data-target="slut-1840erne"] .tooltip-text {
+            left: 0;
+            transform: none;
+        }
+        .drop-target[data-target="slut-1840erne"] .tooltip-link-wrapper {
+            text-align: left;
+            justify-content: flex-start;
+        }
+        
+        .drop-target[data-target="slut-1960erne"] .tooltip-text {
+            right: 0;
+            left: auto;
+            transform: none;
+        }
+        .drop-target[data-target="slut-1960erne"] .tooltip-link-wrapper {
+            text-align: right;
+            justify-content: flex-end;
+        }
+
+        .short-text:not(.hidden), .long-text:not(.hidden) {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .tooltip-content {
+            order: 1;
+            margin-bottom: 8px;
+        }
+
+        .tooltip-link-wrapper {
+            order: 2;
+            margin-top: 0;
+        }
+
+        .drop-target .tooltip-content {
+            order: 2;
+            margin-bottom: 0;
+            margin-top: 8px;
+        }
+
+        .drop-target .tooltip-link-wrapper {
+            order: 1;
+            margin-top: 0;
+            margin-bottom: 0;
+        }
+
+        #image-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.85); 
+            z-index: 9999;
+            display: none;
+            justify-content: center; 
+            align-items: center;
+            flex-direction: column;
+            cursor: pointer;
+        }
+
+        #image-modal.flex {
+            display: flex;
+        }
+
+        .modal-content {
+            display: flex;
+            flex-direction: column;
+            align-items: center; 
+            justify-content: center;
+            max-width: 100%;
+            width: 100%; 
+        }
+
+        #modal-image {
+            max-width: 90vw;
+            max-height: 70vh; 
+            border-radius: 8px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+            object-fit: contain;
+            background-color: transparent; 
+        }
+        
+        #modal-text-container {
+            margin-top: 15px;
+            text-align: center;
+            max-width: 450px; 
+            width: 90%; 
+            padding: 0 10px;
+        }
+
+        #modal-title {
+            display: none; 
+        }
+
+        #modal-description {
+            color: #fff;
+            font-size: 0.85rem; 
+            font-weight: 400;
+            font-style: italic; 
+            line-height: 1.5;
+            text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+        }
+
+        .modal-hint {
+            color: #ccc;
+            margin-top: 8px;
+            font-size: 0.75rem; 
+            opacity: 0.8;
+            text-align: center;
+            width: 100%;
+        }
+    </style>
+</head>
+<body class="bg-[#fcfcf8] flex flex-col items-center justify-start h-auto min-h-screen">
+    <div class="bg-[#FCFCF8] p-3 md:p-4 rounded-xl w-full max-w-[1150px] relative z-0 mt-4 mb-4">
+        <h1 class="text-xl md:text-2xl font-bold text-center text-gray-800 mb-1">Tidslinje: Demokrati og oprør</h1>
+        <p class="text-center text-gray-600 mb-2 md:mb-3 text-sm">Træk begivenhederne til de korrekte perioder på tidslinjen. Hold musen over en brik for at se tekst om begivenheden. Klik på forstørrelsesglasset for at se billedet.</p>
+
+        <!-- Timeline and Drop Targets Section -->
+        <div class="flex flex-col items-center w-full mb-1">
+            <div class="timeline-container">
+                <div class="timeline-year"><span class="text-gray-500 text-[11px] md:text-xs leading-none">Slutningen af<br>1840erne</span><div class="timeline-marker"></div></div>
+                <div class="timeline-year"><span class="text-gray-500 text-[11px] md:text-xs leading-none">1864</span><div class="timeline-marker"></div></div>
+                <div class="timeline-year"><span class="text-gray-500 text-[11px] md:text-xs leading-none">1870-72</span><div class="timeline-marker"></div></div>
+                <div class="timeline-year"><span class="text-gray-500 text-[11px] md:text-xs leading-none">1880erne &<br>90erne</span><div class="timeline-marker"></div></div>
+                <div class="timeline-year"><span class="text-gray-500 text-[11px] md:text-xs leading-none">1901</span><div class="timeline-marker"></div></div>
+                <div class="timeline-year"><span class="text-gray-500 text-[11px] md:text-xs leading-none">1906</span><div class="timeline-marker"></div></div>
+                <div class="timeline-year"><span class="text-gray-500 text-[11px] md:text-xs leading-none">1915</span><div class="timeline-marker"></div></div>
+                <div class="timeline-year"><span class="text-gray-500 text-[11px] md:text-xs leading-none">Slutningen af<br>1960erne</span><div class="timeline-marker"></div></div>
+            </div>
+            <div class="timeline-line"></div>
+            <!-- Drop Targets -->
+            <div id="drop-container" class="w-full flex justify-between mt-3">
+                <div class="drop-target flex items-center justify-center rounded-lg" data-target="slut-1840erne"></div>
+                <div class="drop-target flex items-center justify-center rounded-lg" data-target="1864"></div>
+                <div class="drop-target flex items-center justify-center rounded-lg" data-target="1872"></div>
+                <div class="drop-target flex items-center justify-center rounded-lg" data-target="1880erne-90erne"></div>
+                <div class="drop-target flex items-center justify-center rounded-lg" data-target="1901"></div>
+                <div class="drop-target flex items-center justify-center rounded-lg" data-target="1906"></div>
+                <div class="drop-target flex items-center justify-center rounded-lg" data-target="1915"></div>
+                <div class="drop-target flex items-center justify-center rounded-lg" data-target="slut-1960erne"></div>
+            </div>
+        </div>
+
+        <!-- Puzzle Pieces Section -->
+        <div id="pieces-container-wrapper" class="w-full mt-2">
+            <span id="pieces-label">Brikpulje</span>
+            <div id="pieces-container" class="w-full flex flex-wrap justify-center gap-4">
+                
+                <!-- Brik Slutningen af 1840erne -->
+                <div class="puzzle-piece w-24 h-24 flex items-center justify-center bg-gray-200 rounded-lg shadow-sm text-center text-gray-800" 
+                     draggable="true" 
+                     data-piece="slut-1840erne" 
+                     data-text="Enevælde & Grundlov" 
+                     data-images='["/images/1849.png", "/images/1848.png"]' 
+                     data-descriptions='["Friheden fører folket (La Liberté guidant le peuple), af Eugène Delacroix.", "Den Grundlovgivende Rigsforsamling, af Constantin Hansen."]' 
+                     data-current-img="0">
+                    <button class="expand-btn" title="Se stort billede"><i class="fas fa-search-plus"></i></button>
+                    <!-- BEMÆRK: src er nu et lokalt link -->
+                    <img src="/images/1849.png" alt="Enevælde & Grundlov" class="puzzle-image" onerror="this.src='https://placehold.co/100x100?text=Billede+mangler'">
+                    <div class="tooltip-text">
+                        <div class="short-text text-left">
+                            <ul class="list-disc pl-4 space-y-2 tooltip-content">
+                                <li>Enevælden afsluttes
+                                    <ul class="list-[circle] pl-5 mt-1 space-y-1">
+                                        <li>Frederik 7. afskaffer enevælden under pres fra liberale grupper.</li>
+                                        <li>Overgang fra enevælde mod folkestyre indledes ublodigt.</li>
+                                    </ul>
+                                </li>
+                                <li>Junigrundloven
+                                    <ul class="list-[circle] pl-5 mt-1 space-y-1">
+                                        <li>Danmarks første frie forfatning sikrer bl.a. ytrings- og forsamlingsfrihed.</li>
+                                        <li>Dog kun valgret for ca. 15% af befolkningen (de 'syv F'er' var ekskluderet).</li>
+                                    </ul>
+                                </li>
+                            </ul>
+                            <div class="text-center tooltip-link-wrapper mt-2 flex justify-center items-center gap-4">
+                                <button type="button" class="read-more-btn text-blue-300 hover:text-white underline font-semibold">Læs mere</button>
+                                <button type="button" class="change-img-btn text-blue-300 hover:text-white underline font-semibold flex items-center gap-1"><i class="fas fa-sync-alt"></i> Skift billede</button>
+                            </div>
+                        </div>
+                        <div class="long-text hidden text-left">
+                            <p class="tooltip-content">Revolutionære strømninger i Paris og mange andre steder i Europa nåede til Danmark. Herudover spøgte den franske revolutions blodige afskaffelse af det franske monarki stadig. Pres fra liberale grupper fik Frederik 7. til at afskaffe enevælden uden voldelig revolution. Året efter fik Danmark med Junigrundloven sin første frie forfatning, der erstattede enevældens magt med et indskrænket monarki og magtens tredeling. Det var et markant skridt fra undersåt til borger. Selvom grundloven var et demokratisk fremskridt, var demokratiet langtfra for alle. For at kunne stemme skulle man være fyldt 30 år, have egen husstand og måtte ikke have modtaget fattighjælp. De såkaldte 'syv F'er' – herunder fruentimmere (kvinder), folkehold (tjenestefolk), fattige og fremmede – var udelukket fra politisk indflydelse.</p>
+                            <div class="text-center tooltip-link-wrapper mt-2 flex justify-center items-center gap-4">
+                                <button type="button" class="read-less-btn text-blue-300 hover:text-white underline font-semibold">Læs mindre</button>
+                                <button type="button" class="change-img-btn text-blue-300 hover:text-white underline font-semibold flex items-center gap-1"><i class="fas fa-sync-alt"></i> Skift billede</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Brik 1864 -->
+                <div class="puzzle-piece w-24 h-24 flex items-center justify-center bg-gray-200 rounded-lg shadow-sm text-center text-gray-800" draggable="true" data-piece="1864" data-text="Anden slesvigske krig" data-description="8. brigades modangreb ved Dybbøl 18. april ..., af Vilhelm Rosenstand.">
+                    <button class="expand-btn" title="Se stort billede"><i class="fas fa-search-plus"></i></button>
+                    <!-- BEMÆRK: src er nu et lokalt link -->
+                    <img src="/images/1864.png" alt="Anden slesvigske krig" class="puzzle-image" onerror="this.src='https://placehold.co/100x100?text=Billede+mangler'">
+                    <div class="tooltip-text">
+                        <div class="short-text text-left">
+                            <ul class="list-disc pl-4 space-y-2 tooltip-content">
+                                <li>Nederlag og tab af hertugdømmerne
+                                    <ul class="list-[circle] pl-5 mt-1 space-y-1">
+                                        <li>Fokus ændres fra territorial strid til national overlevelse.</li>
+                                        <li>Udløser ny central debat: militær oprustning eller neutralitet?</li>
+                                    </ul>
+                                </li>
+                                <li>Ændring af grundloven
+                                    <ul class="list-[circle] pl-5 mt-1 space-y-1">
+                                        <li>Indskrænker valgretten til Landstinget.</li>
+                                        <li>Sikrer godsejerne og partiet Højre politisk kontrol over Folketingets beslutninger.</li>
+                                    </ul>
+                                </li>
+                            </ul>
+                            <div class="text-center tooltip-link-wrapper mt-2 flex justify-center items-center gap-4">
+                                <button type="button" class="read-more-btn text-blue-300 hover:text-white underline font-semibold">Læs mere</button>
+                            </div>
+                        </div>
+                        <div class="long-text hidden text-left">
+                            <p class="tooltip-content">Krigen mod Prøjsen og Østrig endte i nederlag, og Danmark mistede hertugdømmerne. Den politiske debat handlede herefter ikke længere om, hvordan Danmark og hertugdømmernes forhold skulle være. I stedet handlede det nu om, hvordan det lille Danmark bedst kunne overleve: Skulle man opruste militært eller holde sig neutral? I forlængelse af nederlaget blev grundloven desuden revideret (ændret). Her indskrænkedes valgretten til Landstinget, hvilket sikrede godsejerne og Højre magten til at blokere for beslutninger i Folketinget. Et centralt argument herfor var at den øgede magt til folkets repræsentanter havde udløst krisen og nederlaget.</p>
+                            <div class="text-center tooltip-link-wrapper mt-2 flex justify-center items-center gap-4">
+                                <button type="button" class="read-less-btn text-blue-300 hover:text-white underline font-semibold">Læs mindre</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Brik 1872 -->
+                <div class="puzzle-piece w-24 h-24 flex items-center justify-center bg-gray-200 rounded-lg shadow-sm text-center text-gray-800" draggable="true" data-piece="1872" data-text="Absolut flertal til Venstre" data-description="AI-genereret Venstre-Logo (Gemini).">
+                    <button class="expand-btn" title="Se stort billede"><i class="fas fa-search-plus"></i></button>
+                    <!-- BEMÆRK: src er nu et lokalt link -->
+                    <img src="/images/1872.png" alt="Absolut flertal" class="puzzle-image" onerror="this.src='https://placehold.co/100x100?text=Billede+mangler'">
+                    <div class="tooltip-text">
+                        <div class="short-text text-left">
+                            <ul class="list-disc pl-4 space-y-2 tooltip-content">
+                                <li>Venstre dannes og vinder absolut flertal i Folketinget.
+                                    <ul class="list-[circle] pl-5 mt-1 space-y-1">
+                                        <li>Gårdmændene træder for alvor ind på den politiske scene.</li>
+                                        <li>Trods flertallet får de ikke regeringsmagten (parlamentarisme gjaldt ikke endnu).</li>
+                                        <li>Skaber en massiv fastlåst konflikt mellem Folketing og regering (Højre).</li>
+                                    </ul>
+                                </li>
+                            </ul>
+                            <div class="text-center tooltip-link-wrapper mt-2 flex justify-center items-center gap-4">
+                                <button type="button" class="read-more-btn text-blue-300 hover:text-white underline font-semibold">Læs mere</button>
+                            </div>
+                        </div>
+                        <div class="long-text hidden text-left">
+                            <p class="tooltip-content">Venstre vandt for første gang absolut flertal i Folketinget. Dette markerede, at gårdmændene for alvor var trådt ind på den politiske scene som en magtfaktor. Da parlamentarismen endnu ikke var indført, betød flertallet dog ikke regeringsmagt. Kongen og godsejerne sad stadig tungt på Landstinget og regeringen (Højre), hvilket skabte en fastlåst konflikt mellem folketingsflertallet og regeringen, der pegede frem mod fremtidige politisk konflikt i Danmark.</p>
+                            <div class="text-center tooltip-link-wrapper mt-2 flex justify-center items-center gap-4">
+                                <button type="button" class="read-less-btn text-blue-300 hover:text-white underline font-semibold">Læs mindre</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Brik 1880erne og 90erne -->
+                <div class="puzzle-piece w-24 h-24 flex items-center justify-center bg-gray-200 rounded-lg shadow-sm text-center text-gray-800" draggable="true" data-piece="1880erne-90erne" data-text="Provisorietiden" data-description="Attentatforsøget på konseilspræsident J.B.S. Estrup, illustration (træsnit).">
+                    <button class="expand-btn" title="Se stort billede"><i class="fas fa-search-plus"></i></button>
+                    <!-- BEMÆRK: src er nu et lokalt link -->
+                    <img src="/images/provisorietid.png" alt="Provisorietid" class="puzzle-image" onerror="this.src='https://placehold.co/100x100?text=Billede+mangler'">
+                    <div class="tooltip-text">
+                        <div class="short-text text-left">
+                            <ul class="list-disc pl-4 space-y-2 tooltip-content">
+                                <li>Hård politisk konflikt mellem regeringen og Folketinget.
+                                    <ul class="list-[circle] pl-5 mt-1 space-y-1">
+                                        <li>Estrup regerer gennem provisoriske (midlertidige) love uden om Folketinget.</li>
+                                        <li>Folketinget lammer statens lovgivning med vilje.</li>
+                                        <li>Kulminerer med et attentatforsøg på Estrup og oprettelsen af 'De Blå Gendarmer'.</li>
+                                    </ul>
+                                </li>
+                            </ul>
+                            <div class="text-center tooltip-link-wrapper mt-2 flex justify-center items-center gap-4">
+                                <button type="button" class="read-more-btn text-blue-300 hover:text-white underline font-semibold">Læs mere</button>
+                            </div>
+                        </div>
+                        <div class="long-text hidden text-left">
+                            <p class="tooltip-content">Attentatforsøget mod Estrup, udført af den unge venstremand Julius Rasmussen, markerede et dramatisk højdepunkt i en langvarig ophedet politisk konflikt. Spændingerne var så voldsomme, at dele af befolkningen bevæbnede sig mod hinanden, med de Venstre-ledede skytteklubber på den ene side og Estrups særlige statspoliti, De Blå Gendarmer, på den anden. Konfliktens baggrund var Estrups beslutning om at regere gennem provisoriske (midlertidige) love efter at have sendt Rigsdagen hjem – en direkte reaktion på Venstres strategi om at lamme statens styring ved konsekvent at blokere Højre-regeringens lovforslag.</p>
+                            <div class="text-center tooltip-link-wrapper mt-2 flex justify-center items-center gap-4">
+                                <button type="button" class="read-less-btn text-blue-300 hover:text-white underline font-semibold">Læs mindre</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Brik 1901 -->
+                <div class="puzzle-piece w-24 h-24 flex items-center justify-center bg-gray-200 rounded-lg shadow-sm text-center text-gray-800" draggable="true" data-piece="1901" data-text="Systemskiftet" data-description="Portræt af Jens Christian Christensen, af Niels Vinding Dorph.">
+                    <button class="expand-btn" title="Se stort billede"><i class="fas fa-search-plus"></i></button>
+                    <!-- BEMÆRK: src er nu et lokalt link -->
+                    <img src="/images/1901.png" alt="Systemskifte" class="puzzle-image" onerror="this.src='https://placehold.co/100x100?text=Billede+mangler'">
+                    <div class="tooltip-text">
+                        <div class="short-text text-left">
+                            <ul class="list-disc pl-4 space-y-2 tooltip-content">
+                                <li>Indførelsen af parlamentarisme i praksis.
+                                    <ul class="list-[circle] pl-5 mt-1 space-y-1">
+                                        <li>En regering kan ikke længere sidde med et flertal i mod sig i Folketinget.</li>
+                                        <li>Kongen må bøje sig og lade Venstre danne regering.</li>
+                                        <li>Højres politiske dominans er brudt.</li>
+                                    </ul>
+                                </li>
+                            </ul>
+                            <div class="text-center tooltip-link-wrapper mt-2 flex justify-center items-center gap-4">
+                                <button type="button" class="read-more-btn text-blue-300 hover:text-white underline font-semibold">Læs mere</button>
+                            </div>
+                        </div>
+                        <div class="long-text hidden text-left">
+                            <p class="tooltip-content">Efter et stort valgnederlag, hvor regeringspartiet Højre blev halveret, måtte kongen bøje sig og udnævne en regering baseret på Folketingets flertal (Venstre). Det blev dog ikke bondepartiet Venstres leder, J.C. Christensen, der blev regeringsleder. Kongen valgte i stedet juraprofessoren J.H. Deuntzer som et kompromis. På den måde virkede kongens nederlag mindre totalt. Dermed indførtes parlamentarismen i praksis: En regering må ikke have et flertal imod sig. Dette "Systemskifte" var afslutningen på Højres årtierlange politiske dominans.</p>
+                            <div class="text-center tooltip-link-wrapper mt-2 flex justify-center items-center gap-4">
+                                <button type="button" class="read-less-btn text-blue-300 hover:text-white underline font-semibold">Læs mindre</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Brik 1906 -->
+                <div class="puzzle-piece w-24 h-24 flex items-center justify-center bg-gray-200 rounded-lg shadow-sm text-center text-gray-800" draggable="true" data-piece="1906" data-text="Det Radikale Venstre stiftes" data-description="AI-genereret Radikale-Venstre-Logo (Gemini).">
+                    <button class="expand-btn" title="Se stort billede"><i class="fas fa-search-plus"></i></button>
+                    <!-- BEMÆRK: src er nu et lokalt link -->
+                    <img src="/images/1906.png" alt="Radikale Venstre" class="puzzle-image" onerror="this.src='https://placehold.co/100x100?text=Billede+mangler'">
+                    <div class="tooltip-text">
+                        <div class="short-text text-left">
+                            <ul class="list-disc pl-4 space-y-2 tooltip-content">
+                                <li>Nyt parti bryder ud fra Venstre.
+                                    <ul class="list-[circle] pl-5 mt-1 space-y-1">
+                                        <li>Stiftes særligt på grund af uenigheder om forsvarspolitik.</li>
+                                        <li>'Fire-parti-systemet' er nu etableret (Højre, Venstre, Socialdemokratiet og Radikale).</li>
+                                        <li>Partierne repræsenterer tydeligt befolkningens forskellige klasser.</li>
+                                    </ul>
+                                </li>
+                            </ul>
+                            <div class="text-center tooltip-link-wrapper mt-2 flex justify-center items-center gap-4">
+                                <button type="button" class="read-more-btn text-blue-300 hover:text-white underline font-semibold">Læs mere</button>
+                            </div>
+                        </div>
+                        <div class="long-text hidden text-left">
+                            <p class="tooltip-content">Det Radikale Venstre dannedes som udbryderparti fra Venstre, primært på grund af uenighed om forsvarspolitikken. Med Socialdemokratiet, Venstre, Konservative (tidligere Højre) og nu Radikale Venstre var 'fire-parti-systemet' etableret. Det politiske landskab spejlede nu tydeligt befolkningens opdeling: Højre repræsenterede godsejerne og borgerskabet, Venstre var gårdmændenes parti, Det Radikale Venstre varetog husmændenes og de intellektuelles interesser, og Socialdemokratiet kæmpede for arbejderne.</p>
+                            <div class="text-center tooltip-link-wrapper mt-2 flex justify-center items-center gap-4">
+                                <button type="button" class="read-less-btn text-blue-300 hover:text-white underline font-semibold">Læs mindre</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Brik 1915 -->
+                <div class="puzzle-piece w-24 h-24 flex items-center justify-center bg-gray-200 rounded-lg shadow-sm text-center text-gray-800" draggable="true" data-piece="1915" data-text="Ny Grundlov" data-description="Kvindetoget til Amalienborg/Rigsdagen, fotografi.">
+                    <button class="expand-btn" title="Se stort billede"><i class="fas fa-search-plus"></i></button>
+                    <!-- BEMÆRK: src er nu et lokalt link -->
+                    <img src="/images/1915.png" alt="Ny Grundlov" class="puzzle-image" onerror="this.src='https://placehold.co/100x100?text=Billede+mangler'">
+                    <div class="tooltip-text">
+                        <div class="short-text text-left">
+                            <ul class="list-disc pl-4 space-y-2 tooltip-content">
+                                <li>Grundloven gøres demokratisk for stort set alle voksne.
+                                    <ul class="list-[circle] pl-5 mt-1 space-y-1">
+                                        <li>Kvinder og tjenestefolk ("tyende") får stemmeret.</li>
+                                        <li>Valgretsalderen sænkes gradvist.</li>
+                                        <li>Den politiske debat handler herefter om sociale rettigheder frem for politiske rettigheder.</li>
+                                    </ul>
+                                </li>
+                            </ul>
+                            <div class="text-center tooltip-link-wrapper mt-2 flex justify-center items-center gap-4">
+                                <button type="button" class="read-more-btn text-blue-300 hover:text-white underline font-semibold">Læs mere</button>
+                            </div>
+                        </div>
+                        <div class="long-text hidden text-left">
+                            <p class="tooltip-content">Den nye grundlov gjorde demokratiet repræsentativt for næsten hele den voksne befolkning. Kvinder og tjenestefolk fik stemmeret, og valgretsalderen blev heraf gradvist sænket. Reformen var kulminationen på årtiers politisk kamp om demokratiets tilstand. I forlængelse heraf skiftede det politiske fokus mere væk fra spørgsmålet om de basale demokratiske rettigheder og over imod diskussionen om sociale rettigheder, fordelingspolitik og velfærd.</p>
+                            <div class="text-center tooltip-link-wrapper mt-2 flex justify-center items-center gap-4">
+                                <button type="button" class="read-less-btn text-blue-300 hover:text-white underline font-semibold">Læs mindre</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Brik Slut 1960erne -->
+                <div class="puzzle-piece w-24 h-24 flex items-center justify-center bg-gray-200 rounded-lg shadow-sm text-center text-gray-800" draggable="true" data-piece="slut-1960erne" data-text="Ungdomsoprør & Rødstrømper" data-description="Demonstration under ungdomsoprøret i Danmark, fotografi.">
+                    <button class="expand-btn" title="Se stort billede"><i class="fas fa-search-plus"></i></button>
+                    <!-- BEMÆRK: src er nu et lokalt link -->
+                    <img src="/images/1968.png" alt="Ungdomsoprør og rødstrømper" class="puzzle-image" onerror="this.src='https://placehold.co/100x100?text=Billede+mangler'">
+                    <div class="tooltip-text">
+                        <div class="short-text text-left">
+                            <ul class="list-disc pl-4 space-y-2 tooltip-content">
+                                <li>Kulturelt og socialt opgør i samfundet.
+                                    <ul class="list-[circle] pl-5 mt-1 space-y-1">
+                                        <li>Ungdomsoprøret og rødstrømpebevægelsen kræver opgør med traditionelle autoriteter og kønsroller.</li>
+                                        <li>Fører til mere frie livsformer og fokus på ligestilling.</li>
+                                        <li>Baner vejen for at kvinder træder stærkere ind på arbejdsmarkedet.</li>
+                                    </ul>
+                                </li>
+                            </ul>
+                            <div class="text-center tooltip-link-wrapper mt-2 flex justify-center items-center gap-4">
+                                <button type="button" class="read-more-btn text-blue-300 hover:text-white underline font-semibold">Læs mere</button>
+                            </div>
+                        </div>
+                        <div class="long-text hidden text-left">
+                            <p class="tooltip-content">Dette var perioden hvor ungdomsoprøret og rødstrømpebevægelsen gjorde op med autoriteter og traditionelle kønsroller. Krav om medbestemmelse, friere livsformer og ligestilling forandrede kulturen, uddannelsessystemet og familielivet. Unges livsmuligheder begyndte i høj grad at udvides, og vejen banedes for kvinders massive indtog på arbejdsmarkedet på mere lige vilkår, samt for en videre udbygning af velfærdsstatens institutioner.</p>
+                            <div class="text-center tooltip-link-wrapper mt-2 flex justify-center items-center gap-4">
+                                <button type="button" class="read-less-btn text-blue-300 hover:text-white underline font-semibold">Læs mindre</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+        <!-- Reset Button -->
+        <div class="flex justify-center mt-3">
+            <button id="reset-button">
+                <i class="fas fa-undo"></i>
+                Nulstil Spillet
+            </button>
+        </div>
+    </div>
+
+    <!-- MODAL TIL STORT BILLEDE -->
+    <div id="image-modal" class="hidden">
+        <div class="modal-content">
+            <div class="relative flex justify-center items-center">
+                <button id="modal-prev-btn" class="absolute left-2 md:left-4 top-1/2 -translate-y-1/2 bg-black/60 text-white rounded-full w-10 h-10 flex items-center justify-center hover:bg-black/90 hidden z-50 text-xl transition-colors"><i class="fas fa-chevron-left"></i></button>
+                <img id="modal-image" src="" alt="Stort billede">
+                <button id="modal-next-btn" class="absolute right-2 md:right-4 top-1/2 -translate-y-1/2 bg-black/60 text-white rounded-full w-10 h-10 flex items-center justify-center hover:bg-black/90 hidden z-50 text-xl transition-colors"><i class="fas fa-chevron-right"></i></button>
+            </div>
+            <!-- Container til tekst -->
+            <div id="modal-text-container">
+                <h3 id="modal-title"></h3>
+                <p id="modal-description"></p>
+            </div>
+            <div class="modal-hint">Klik uden for billedet for at lukke</div>
+        </div>
+    </div>
+
+    <script>
+        let draggedPieceSource = null;
+
+        const piecesContainer = document.getElementById('pieces-container');
+        const dropTargets = document.querySelectorAll('.drop-target');
+        const resetButton = document.getElementById('reset-button');
+        
+        const modal = document.getElementById('image-modal');
+        const modalImg = document.getElementById('modal-image');
+        const modalTitle = document.getElementById('modal-title');
+        const modalDescription = document.getElementById('modal-description');
+        const expandButtons = document.querySelectorAll('.expand-btn');
+
+        // Modal variabler
+        let currentModalImages = [];
+        let currentModalDescriptions = [];
+        let currentModalIndex = 0;
+        let activePiece = null;
+
+        expandButtons.forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                e.preventDefault();
+                
+                const piece = btn.closest('.puzzle-piece');
+                const title = piece.dataset.text; 
+                
+                activePiece = piece;
+                
+                if (piece.dataset.images) {
+                    currentModalImages = JSON.parse(piece.dataset.images);
+                    currentModalDescriptions = piece.dataset.descriptions ? JSON.parse(piece.dataset.descriptions) : [];
+                    currentModalIndex = parseInt(piece.dataset.currentImg || "0");
+                    
+                    modalImg.src = currentModalImages[currentModalIndex];
+                    modalDescription.textContent = currentModalDescriptions[currentModalIndex] || "";
+                    
+                    if (currentModalImages.length > 1) {
+                        document.getElementById('modal-prev-btn').classList.remove('hidden');
+                        document.getElementById('modal-next-btn').classList.remove('hidden');
+                    } else {
+                        document.getElementById('modal-prev-btn').classList.add('hidden');
+                        document.getElementById('modal-next-btn').classList.add('hidden');
+                    }
+                } else {
+                    currentModalImages = [];
+                    currentModalDescriptions = [];
+                    currentModalIndex = 0;
+                    
+                    const img = piece.querySelector('.puzzle-image');
+                    modalImg.src = img.src; 
+                    modalDescription.textContent = piece.dataset.description || "";
+                    
+                    document.getElementById('modal-prev-btn').classList.add('hidden');
+                    document.getElementById('modal-next-btn').classList.add('hidden');
+                }
+                
+                modalTitle.textContent = title;
+                modal.classList.remove('hidden');
+                modal.classList.add('flex');
+            });
+        });
+
+        modal.addEventListener('click', (e) => {
+            if (e.target.id === 'image-modal' || e.target.classList.contains('modal-content') || e.target.classList.contains('modal-hint') || e.target.id === 'modal-text-container') {
+                modal.classList.add('hidden');
+                modal.classList.remove('flex');
+                modalImg.src = '';
+                modalTitle.textContent = '';
+                modalDescription.textContent = '';
+                activePiece = null;
+            }
+        });
+
+        document.getElementById('modal-next-btn').addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (currentModalImages.length > 1) {
+                currentModalIndex = (currentModalIndex + 1) % currentModalImages.length;
+                modalImg.src = currentModalImages[currentModalIndex];
+                modalDescription.textContent = currentModalDescriptions[currentModalIndex] || "";
+                
+                if (activePiece) {
+                    activePiece.dataset.currentImg = currentModalIndex;
+                    const pieceImg = activePiece.querySelector('.puzzle-image');
+                    if (pieceImg) pieceImg.src = currentModalImages[currentModalIndex];
+                }
+            }
+        });
+
+        document.getElementById('modal-prev-btn').addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (currentModalImages.length > 1) {
+                currentModalIndex = (currentModalIndex - 1 + currentModalImages.length) % currentModalImages.length;
+                modalImg.src = currentModalImages[currentModalIndex];
+                modalDescription.textContent = currentModalDescriptions[currentModalIndex] || "";
+                
+                if (activePiece) {
+                    activePiece.dataset.currentImg = currentModalIndex;
+                    const pieceImg = activePiece.querySelector('.puzzle-image');
+                    if (pieceImg) pieceImg.src = currentModalImages[currentModalIndex];
+                }
+            }
+        });
+
+        document.body.addEventListener('dragstart', (e) => {
+            if (e.target.classList.contains('expand-btn') || e.target.closest('.expand-btn')) {
+                e.preventDefault();
+                return;
+            }
+
+            const target = e.target.closest('.puzzle-piece');
+            if (target) {
+                e.dataTransfer.setData('text/plain', target.dataset.piece);
+                target.classList.add('dragging');
+
+                if (target.parentNode.classList.contains('drop-target')) {
+                    draggedPieceSource = target.parentNode;
+                } else {
+                    draggedPieceSource = null;
+                }
+            }
+        });
+        
+        document.body.addEventListener('dragend', (e) => {
+            const target = e.target.closest('.puzzle-piece');
+            if (target) {
+                target.classList.remove('dragging');
+                
+                const allPieces = document.querySelectorAll('.puzzle-piece');
+                allPieces.forEach(p => p.classList.add('interaction-disabled'));
+                
+                setTimeout(() => {
+                    allPieces.forEach(p => p.classList.remove('interaction-disabled'));
+                }, 500);
+            }
+        });
+
+        dropTargets.forEach(target => {
+            target.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                target.classList.add('bg-blue-200');
+            });
+
+            target.addEventListener('dragleave', (e) => {
+                target.classList.remove('bg-blue-200');
+            });
+
+            target.addEventListener('drop', (e) => {
+                e.preventDefault();
+                target.classList.remove('bg-blue-200');
+
+                const pieceValue = e.dataTransfer.getData('text/plain');
+                const draggedItem = document.querySelector(`.puzzle-piece[data-piece="${pieceValue}"]`);
+
+                if (draggedItem) {
+                    const targetValue = target.dataset.target;
+
+                    if (draggedPieceSource && draggedPieceSource !== target) {
+                        draggedPieceSource.classList.remove('correct', 'incorrect');
+                    }
+
+                    const existingPiece = target.querySelector('.puzzle-piece');
+                    if (existingPiece) {
+                        piecesContainer.appendChild(existingPiece);
+                        existingPiece.classList.remove('on-board');
+                        existingPiece.draggable = true;
+                    }
+                    
+                    target.appendChild(draggedItem);
+                    draggedItem.classList.add('on-board');
+                    draggedItem.draggable = true;
+
+                    target.classList.remove('correct', 'incorrect');
+                    if (pieceValue === targetValue) {
+                        target.classList.add('correct');
+                    } else {
+                        target.classList.add('incorrect');
+                    }
+                }
+            });
+        });
+        
+        piecesContainer.addEventListener('dragover', (e) => {
+            e.preventDefault();
+        });
+
+        piecesContainer.addEventListener('drop', (e) => {
+            e.preventDefault();
+            const pieceValue = e.dataTransfer.getData('text/plain');
+            const draggedItem = document.querySelector(`.puzzle-piece[data-piece="${pieceValue}"]`);
+
+            if (draggedItem) {
+                if (draggedItem.parentNode.classList.contains('drop-target')) {
+                    const parentTarget = draggedItem.parentNode;
+                    parentTarget.classList.remove('correct', 'incorrect');
+                }
+
+                piecesContainer.appendChild(draggedItem);
+                draggedItem.classList.remove('on-board');
+            }
+        });
+
+        resetButton.addEventListener('click', () => {
+            dropTargets.forEach(target => {
+                const piece = target.querySelector('.puzzle-piece');
+                if (piece) {
+                    piecesContainer.appendChild(piece);
+                    piece.classList.remove('on-board');
+                    piece.draggable = true;
+                }
+                target.classList.remove('correct', 'incorrect');
+            });
+            const pieces = document.querySelectorAll('.puzzle-piece');
+            pieces.forEach(piece => {
+                piece.style.order = Math.floor(Math.random() * pieces.length);
+            });
+        });
+
+        const pieces = document.querySelectorAll('.puzzle-piece');
+        pieces.forEach(piece => {
+            piece.style.order = Math.floor(Math.random() * pieces.length);
+        });
+
+        document.body.addEventListener('click', (e) => {
+            if (e.target.closest('.read-more-btn')) {
+                e.preventDefault();
+                e.stopPropagation();
+                const container = e.target.closest('.tooltip-text');
+                container.querySelector('.short-text').classList.add('hidden');
+                container.querySelector('.long-text').classList.remove('hidden');
+            }
+            else if (e.target.closest('.read-less-btn')) {
+                e.preventDefault();
+                e.stopPropagation();
+                const container = e.target.closest('.tooltip-text');
+                container.querySelector('.long-text').classList.add('hidden');
+                container.querySelector('.short-text').classList.remove('hidden');
+            }
+            else if (e.target.closest('.change-img-btn')) {
+                e.preventDefault();
+                e.stopPropagation();
+                
+                const btn = e.target.closest('.change-img-btn');
+                const piece = btn.closest('.puzzle-piece');
+                
+                if (piece && piece.dataset.images) {
+                    try {
+                        const images = JSON.parse(piece.dataset.images);
+                        let currentIndex = parseInt(piece.dataset.currentImg || "0");
+                        
+                        currentIndex = (currentIndex + 1) % images.length;
+                        piece.dataset.currentImg = currentIndex;
+
+                        const imgElement = piece.querySelector('.puzzle-image');
+                        if (imgElement) {
+                            imgElement.src = images[currentIndex];
+                        }
+
+                        if (piece.dataset.descriptions) {
+                            const descriptions = JSON.parse(piece.dataset.descriptions);
+                            if (descriptions[currentIndex]) {
+                                piece.dataset.description = descriptions[currentIndex];
+                            }
+                        }
+                    } catch (err) {
+                        console.error("Kunne ikke skifte billede:", err);
+                    }
+                }
+            }
+        });
+
+        document.querySelectorAll('.puzzle-piece').forEach(piece => {
+            piece.addEventListener('mouseenter', () => {
+                const tooltip = piece.querySelector('.tooltip-text');
+                if (tooltip) {
+                    const shortText = tooltip.querySelector('.short-text');
+                    const longText = tooltip.querySelector('.long-text');
+                    if (shortText && longText) {
+                        shortText.classList.remove('hidden');
+                        longText.classList.add('hidden');
+                    }
+                }
+            });
+        });
+    </script>
+</body>
+</html>
